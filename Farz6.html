@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>فرز الأصوات (قلم رقم 6)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+        .sheet-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .button-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .vote-sheet {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .vote-sheet thead {
+            background-color: #007bff;
+            color: #fff;
+        }
+        .vote-sheet th, .vote-sheet td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+        }
+        .vote-sheet tbody tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .vote-sheet tbody tr:hover {
+            background-color: #f1f1f1;
+        }
+        button {
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #connection-status {
+            text-align: center;
+            color: red;
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="sheet-container">
+        <h1>فرز الأصوات (قلم رقم 6)</h1>
+	  <h5> Powered by Q-visiOn - Eakiki</h5>
+        <div id="connection-status">You are offline. Changes will sync automatically when the connection is restored.</div>
+        <div class="button-container">
+            <button onclick="syncLocalDataToSheet()">Send data to server</button>
+            <button onclick="fixData()">Fix Data</button>
+        </div>
+
+        <table class="vote-sheet" id="voteTable">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Votes</th>
+                    <th>Vote Action</th>
+                    <th>Name1</th>
+                    <th>Votes1</th>
+                    <th>Vote1 Action</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script>
+        const webAppUrl = 'https://script.google.com/macros/s/AKfycbwSXD6u8L-KJ9n0ErwxXolhjY76LR-vQR0IMUwlIUtp0eXf8n92Fr9miEG410ZJTcDifg/exec'; // Replace with your Apps Script URL
+        let localData = []; // Local storage for main and opponent data
+
+        // Fetch initial data from Google Sheets
+        async function fetchInitialData() {
+            try {
+                const response = await fetch(webAppUrl);
+                if (response.ok) {
+                    const data = await response.json();
+                    localData = data; // Store the fetched data locally
+                    displayTable(localData);
+                } else {
+                    console.error("Failed to fetch data:", response.statusText);
+                }
+            } catch (error) {
+                console.error("Error fetching data:", error);
+            }
+        }
+
+        // Display the data in the table
+        function displayTable(data) {
+            const tableBody = document.querySelector('#voteTable tbody');
+            tableBody.innerHTML = ''; // Clear existing rows
+            data.slice(1).forEach((row, index) => { // Skip header row
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row[0]}</td>
+                    <td id="votes-${index}">${row[1]}</td>
+                    <td><button id="vote-${index}" onclick="updateVote(${index}, 'votes')">Vote +1</button></td>
+                    <td>${row[2]}</td>
+                    <td id="votes1-${index}">${row[3]}</td>
+                    <td><button id="vote1-${index}" onclick="updateVote(${index}, 'votes1')">Vote1 +1</button></td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        // Update the local data and UI for the specified column
+        function updateVote(index, column) {
+            if (column === 'votes') {
+                const voteCell = document.getElementById(`votes-${index}`);
+                const currentVotes = parseInt(voteCell.textContent);
+                localData[index + 1][1] = currentVotes + 1; // Update votes locally
+                voteCell.textContent = currentVotes + 1; // Update UI
+            } else if (column === 'votes1') {
+                const voteCell = document.getElementById(`votes1-${index}`);
+                const currentVotes = parseInt(voteCell.textContent);
+                localData[index + 1][3] = currentVotes + 1; // Update votes1 locally
+                voteCell.textContent = currentVotes + 1; // Update UI
+            }
+        }
+
+        // Sync data to Google Sheets
+        async function syncLocalDataToSheet() {
+    if (navigator.onLine) {
+        console.log("Syncing local data to Google Sheets...");
+        try {
+            for (let i = 1; i < localData.length; i++) { // Skip header row
+                const row = localData[i];
+                const response = await fetch(`${webAppUrl}?action=sync&row=${i - 1}&votes=${row[1]}&votes1=${row[3]}`, {
+                    method: 'POST'
+                });
+                if (!response.ok) console.error(`Failed to sync row ${i - 1}:`, response.statusText);
+            }
+            alert("Data sent to server!"); // Add this message
+            console.log("Sync complete.");
+        } catch (error) {
+            console.error("Error during sync:", error);
+        }
+    } else {
+        alert("You are offline. Please check your internet connection before syncing.");
+    }
+}
+
+        // Fetch latest data from Google Sheets and overwrite local data
+async function fixData() {
+    try {
+        console.log("Fetching latest data from Google Sheets...");
+        const response = await fetch(webAppUrl);
+        if (response.ok) {
+            const data = await response.json();
+            localData = data; // Overwrite local data
+            displayTable(localData); // Refresh the table
+            alert("Data fixed!"); // Add this message
+            console.log("Fix complete. Table is now synced with Google Sheets.");
+        } else {
+            console.error("Failed to fetch data for Fix:", response.statusText);
+        }
+    } catch (error) {
+        console.error("Error fetching data during Fix:", error);
+    }
+}
+
+        // Initial data load
+        fetchInitialData();
+    </script>
+</body>
+</html>
